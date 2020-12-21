@@ -60,11 +60,6 @@ def main():
     
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
-    #tr = pd.read_feather("/daintlab/data/movielens/train_3952.ftr")
-    #te = pd.read_feather("/daintlab/data/movielens/test_3952.ftr")
-    
-    
-    #data = pd.concat([tr[['userid','train_positive','train_negative']],te[['test_positive','test_negative']]],axis=1)
     data = pd.read_feather("/daintlab/data/movielens/movie_3953.ftr")
     data2 = pd.read_csv("/daintlab/home/sungchul/Multimodal-Rec/data/movies.csv", header=None)
       
