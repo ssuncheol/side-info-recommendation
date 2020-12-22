@@ -5,13 +5,17 @@ class Engine(object):
     def __init__(self):
         self._metron = MetronAtK(top_k=10)
         
-    def evaluate(self, model,evaluate_data,dic_director,one_hot_vector, epoch_id):
+    def evaluate(self, model,evaluate_data,dic_director,one_hot_vector,image,text, epoch_id):
         #Evaluate model
         model.eval()
         director_tp = []
         director_tn = []
         genre_tp=[]
         genre_tn=[]
+        image_tp=[]
+        image_tn=[]
+        text_tp=[]
+        text_tn=[]
         with torch.no_grad():
             test_users, test_items = evaluate_data[0], evaluate_data[1]
             negative_users, negative_items = evaluate_data[2], evaluate_data[3]
@@ -23,15 +27,16 @@ class Engine(object):
             
             for i in test_items :
                 director_tp.append(dic_director[i.item()])
+                genre_tp.append(one_hot_vector[i.item()])
+                image_tp.append(image[i.item()])   
+                text_tp.append(text[i.item()]) 
+                
             for j in negative_items :
                 director_tn.append(dic_director[j.item()])    
-                
-            for i in test_items :
-                genre_tp.append(one_hot_vector[i.item()])
-                 
-            for j in negative_items :
                 genre_tn.append(one_hot_vector[j.item()])    
-               
+                image_tn.append(image[j.item()])   
+                text_tn.append(text[j.item()])  
+            
                 
             director_tp = torch.LongTensor(director_tp)
             director_tp = director_tp.cuda()
@@ -40,9 +45,18 @@ class Engine(object):
             genre_tp = torch.LongTensor(genre_tp)
             genre_tp = genre_tp.cuda()
             genre_tn = torch.LongTensor(genre_tn)
-            genre_tn = genre_tn.cuda()    
-            test_scores = model(test_users, test_items,director_tp,genre_tp)
-            negative_scores = model(negative_users, negative_items,director_tn,genre_tn)
+            genre_tn = genre_tn.cuda()
+            image_tn = torch.FloatTensor(image_tn)
+            image_tn = image_tn.cuda()
+            image_tp = torch.FloatTensor(image_tp)
+            image_tp = image_tp.cuda()
+            text_tn = torch.FloatTensor(text_tn)
+            text_tn = text_tn.cuda()
+            text_tp = torch.FloatTensor(text_tp)
+            text_tp = text_tp.cuda()
+                
+            test_scores = model(test_users, test_items,director_tp,genre_tp,image_tp,text_tp)
+            negative_scores = model(negative_users, negative_items,director_tn,genre_tn,image_tn,text_tn)
             
             #to cpu
             test_users = test_users.cpu()

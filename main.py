@@ -61,14 +61,17 @@ def main():
     os.environ['CUDA_VISIBLE_DEVICES'] = args.gpu
 
     data = pd.read_feather("/daintlab/data/movielens/movie_3953.ftr")
-    data2 = pd.read_csv("/daintlab/home/sungchul/Multimodal-Rec/data/movies.csv", header=None)
-      
-    print(data.dtypes)
+    data2 = pd.read_csv("/daintlab/data/movielens/movies.csv", header=None)
+    
+    image_feature = pd.read_pickle('/daintlab/data/movielens/image_feature_vec.pickle')
+    text_feature = pd.read_pickle('/daintlab/data/movielens/text_feature_vec.pickle')
+    
+    
     
     
     subdata = data2.iloc[:, [0, 1, 7, 8]]
-    subdata.columns = ['ID', 'Reindexing', 'Genre', 'Director']
-    # print(subdata)
+    subdata.columns = ['ID', 'REIndex', 'Genre', 'Director']
+
     Genre = subdata['Genre']
     
     G = []
@@ -79,6 +82,8 @@ def main():
             print(i)
     df = pd.DataFrame(G)
     Genre = df[0].unique()
+    
+    
     
     genre_dic = {}
     one_hot_vector = {}
@@ -100,7 +105,7 @@ def main():
     #print(one_hot_vector)
 
     data1 = data2.iloc[:, [0, 1, 7, 8]]
-    data1.columns = ['ID', 'Reindexing', 'Genre', 'Director']
+    data1.columns = ['ID', 'index', 'Genre', 'Director']
     
     labelencoder =LabelEncoder()
     data1['Director_num'] = labelencoder.fit_transform(data1['Director'].astype(str))
@@ -109,6 +114,7 @@ def main():
     
     print(np.min(data1['Director_num']))
     print(np.max(data1['Director_num']))
+    
     dic_director = {}
     for i in range(len(data1['ID'])):
         dic_director[data1['ID'][i]] = data1['Director_num'][i]
@@ -121,11 +127,11 @@ def main():
 
 
     #NCF model
-    model = NeuralCF(num_users= 6041,num_items = 3953, num_director=1918,num_genre=23,
+    model = NeuralCF(num_users= 6041,num_items = 3953, num_director=1918,num_genre=23,image=512,text=300,
                      embedding_size = args.latent_dim_mf,
                      num_layers = args.num_layers)
     
-    model = nn.DataParallel(model)
+    #model = nn.DataParallel(model)
     model = model.cuda()
     
     print(model)
@@ -152,24 +158,30 @@ def main():
             users, items, ratings = batch[0], batch[1], batch[2]
             director = []
             genre=[]
-            
+            image = []
+            text = []
             for i in items :
                 director.append(dic_director[i.item()])
-            for i in items :
                 genre.append(one_hot_vector[i.item()])
-             
+                image.append(image_feature[i.item()]) 
+                text.append(text_feature[i.item()])      
                    
             ratings = ratings.float()
             users, items, ratings = users.cuda(), items.cuda(), ratings.cuda()
             
-            optim.zero_grad()
-
+            optim.zero_grad() 
             director = torch.LongTensor(director)
             director = director.cuda()
             genre = torch.LongTensor(genre)
             genre = genre.cuda()
+            image= torch.FloatTensor(image)
+            image = image.cuda()
+            text= torch.FloatTensor(text)
+            text = text.cuda()
             
-            output = model(users, items, director,genre)
+            output = model(users, items, director,genre,image,text)
+            
+            
             loss = criterion(output, ratings)
             loss.backward()
             optim.step()
@@ -181,7 +193,7 @@ def main():
         print("train : ", t2 - t1) 
  
         engine = Engine()
-        hit_ratio,ndcg = engine.evaluate(model,evaluate_data,dic_director,one_hot_vector,epoch_id=epoch)
+        hit_ratio,ndcg = engine.evaluate(model,evaluate_data,dic_director,one_hot_vector,image_feature,text_feature,epoch_id=epoch)
         wandb.log({"epoch" : epoch,
                     "HR" : hit_ratio,
                     "NDCG" : ndcg})
